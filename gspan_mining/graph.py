@@ -149,6 +149,7 @@ class Graph(object):
                  min(16, 1 * len(self.vertices)))
         plt.figure(3, figsize=fsize)
         pos = nx.spectral_layout(gnx)
+        # pos = nx.spring_layout(gnx)
         nx.draw_networkx(gnx, pos, arrows=True, with_labels=True, labels=vlbs)
         nx.draw_networkx_edge_labels(gnx, pos, edge_labels=elbs)
         plt.show()

@@ -15,6 +15,8 @@ from .graph import VACANT_GRAPH_ID
 from .graph import VACANT_VERTEX_LABEL
 
 import pandas as pd
+import os
+
 
 
 def record_timestamp(func):
@@ -78,6 +80,10 @@ class DFScode(list):
         return ''.join(['[', ','.join(
             [str(dfsedge) for dfsedge in self]), ']']
         )
+
+    # def appends(self, dfs_edge):
+    #     """Append a DFSedge to the DFS code."""
+    #     self.append(dfs_edge)
 
     def push_back(self, frm, to, vevlb):
         """Update DFScode by adding one edge."""
@@ -191,8 +197,12 @@ class gSpan(object):
                  is_undirected=True,
                  verbose=False,
                  visualize=False,
-                 where=False):
+                 where=False,
+                 output_file='mygraphdata/output_subgraphs.txt'):
         """Initialize gSpan instance."""
+       
+        print("DEBUG: Loading class gSpan")
+
         self._database_file_name = database_file_name
         self.graphs = dict()
         self._max_ngraphs = max_ngraphs
@@ -217,7 +227,58 @@ class gSpan(object):
                   'Set max_num_vertices = min_num_vertices.')
             self._max_num_vertices = self._min_num_vertices
         self._report_df = pd.DataFrame()
+        self.output_file = output_file
 
+    def save_results(self, patient_input):
+        """
+        Save the results to the specified directory with patient_id.
+        :param patient_input: The input file path for the patient.
+        """
+        print(f"save_results called with patient_input: {patient_input}")
+
+        # Extract the patient_id from the database file name
+        patient_dir = os.path.dirname(patient_input)  # Get the directory path
+        patient_file = os.path.basename(patient_input)  # Get the file name from the full path
+        patient_id = os.path.splitext(patient_file)[0]  # Extract patient ID from the file name
+
+        print(f"patient_dir: {patient_dir}, patient_file: {patient_file}, patient_id: {patient_id}")
+
+        # Define the output file path
+        output_file = os.path.join(patient_dir, f"{patient_id}_subgraphs.txt")
+        print(f"output_file: {output_file}")
+
+        # Save the subgraphs to the output file
+        if self._report_df is not None and not self._report_df.empty:
+            try:
+                with open(output_file, 'w') as f:
+                    for index, row in self._report_df.iterrows():
+                        # Write the subgraph ID
+                        f.write(f"t # {index}\n")
+                        
+                        # Format the description to separate each vertex and edge onto a new line
+                        description = row['description']
+                        formatted_description = description.replace("v ", "\nv ").replace("e ", "\ne ")
+                        f.write(formatted_description.strip() + "\n\n")  # Add two newlines after description
+                        
+                        # Write the support value
+                        f.write(f"Support: {row['support']}\n\n")
+                        
+                        # Include where information
+                        if row['where'] and isinstance(row['where'], list):
+                            f.write(f"where: {row['where']}\n\n")
+                        
+                        # Separator
+                        f.write("-----------------\n\n")
+                    
+                    print(f'All subgraph results saved to {output_file}')
+            
+            except Exception as e:
+                print(f"Error saving results: {e}")
+        
+        else:
+            print("No results to save.")
+
+            
     def time_stats(self):
         """Print stats of time."""
         func_names = ['_read_graphs', 'run']
@@ -307,7 +368,7 @@ class gSpan(object):
                 edges = self._get_forward_root_edges(g, vid)
                 for e in edges:
                     root[(v.vlb, e.elb, g.vertices[e.to].vlb)].append(
-                        PDFS(gid, e, None)
+                        PDFS(g.gid, e, None)
                     )
 
         for vevlb, projected in root.items():
@@ -331,14 +392,19 @@ class gSpan(object):
                                    is_undirected=self._is_undirected)
         display_str = g.display()
         print('\nSupport: {}'.format(self._support))
+        where_info = list(set([p.gid for p in projected])) if self._where else None
+
+        # Existing print statement
+        print('\nSupport: {}'.format(self._support))
 
         # Add some report info to pandas dataframe "self._report_df".
-        self._report_df = self._report_df.append(
+        self._report_df = self._report_df._append(
             pd.DataFrame(
                 {
                     'support': [self._support],
                     'description': [display_str],
-                    'num_vert': self._DFScode.get_num_vertices()
+                    'num_vert': self._DFScode.get_num_vertices(),
+                    'where': [where_info]
                 },
                 index=[int(repr(self._counter)[6:-1])]
             )
@@ -346,8 +412,11 @@ class gSpan(object):
         if self._visualize:
             g.plot()
         if self._where:
-            print('where: {}'.format(list(set([p.gid for p in projected]))))
+            print('where: {}'.format(where_info))
         print('\n-----------------\n')
+
+    
+        
 
     def _get_forward_root_edges(self, g, frm):
         result = []
@@ -514,6 +583,9 @@ class gSpan(object):
 
         num_vertices = self._DFScode.get_num_vertices()
         self._DFScode.build_rmpath()
+        # rmpath = self._DFScode.rmpatopenh
+        # maxtoc = self._DFScode[rmpath[0]].to
+        # min_vlb = self._DFScode[0].vevlb[0]
         rmpath = self._DFScode.rmpath
         maxtoc = self._DFScode[rmpath[0]].to
         min_vlb = self._DFScode[0].vevlb[0]
@@ -547,7 +619,8 @@ class gSpan(object):
             # rmpath forward
             for rmpath_i in rmpath:
                 edges = self._get_forward_rmpath_edges(g,
-                                                       history.edges[rmpath_i],
+                                                       history.edges[
+                                                           rmpath_i],
                                                        min_vlb,
                                                        history)
                 for e in edges:

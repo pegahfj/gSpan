@@ -68,3 +68,9 @@ parser.add_argument(
     help='bool, output where one frequent subgraph appears in database, '
          'default off'
 )
+parser.add_argument(
+    '-o', '-output_path',
+     type=str, 
+     default=None, 
+     help='Directory to save output files.'
+)
